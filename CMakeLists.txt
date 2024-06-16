@@ -13,6 +13,7 @@ set(CMAKE_CXX_STANDARD 14)
 
 #编译详情
 #set(CMAKE_VERBOSE_MAKEFILE ON)
+set(CMAKE_BUILD_TYPE Debug)
 
 #交叉编译工具链信息
 include(${PROJECT_SOURCE_DIR}/Toolchains.cmake)
@@ -65,6 +66,10 @@ file(GLOB_RECURSE APPLICATION_SOURCE_HEADER_FILES application/*.h)
 
 set(APP_SOURCE_FILES ${APP_SOURCE_FILES} ${APPLICATION_SOURCE_FILES} ${OAC_SOURCE_FILES})
 set(APP_SOURCE_HEADER_FILES ${APP_SOURCE_HEADER_FILES} ${APPLICATION_SOURCE_HEADER_FILES} ${OAC_SOURCE_HEADER_FILES})
+
+# for freetype
+add_compile_definitions(DARWIN_NO_CARBON)
+add_compile_definitions(FT2_BUILD_LIBRARY)
 
 function(set_file_group prefix)
     message(STATUS "set_file_group " ${prefix} " " ${ARGC})
