@@ -68,6 +68,8 @@ namespace ulu_face{
         E_PDA_4 = 4,
         E_PDA_Max,
     };
+
+    typedef EPersonDetectAlgor_Type EFaceDetectAlgor_Type;
     
     class IFaceDetect
     {
@@ -78,12 +80,16 @@ namespace ulu_face{
         //设置人形检测算法
         virtual EReturn_Code SetPersonDetectAlgorithm(EPersonDetectAlgor_Type algo) = 0;
         
+        //设置人脸检测算法
+        virtual EReturn_Code SetFaceDetectAlgorithm(EFaceDetectAlgor_Type algo) = 0;
+        
         virtual EReturn_Code Init(EModel_Type mt,const char * model_path)=0;
         virtual EReturn_Code Init(EModel_Type mt,const unsigned char * buffer,size_t buffer_len)=0;
 
         //virtual EReturn_Code Init(const char * model_path,int maxsize = 400,int minsize = 20)=0;
-        virtual int DetectFace(const SULUImage& image,std::vector<SFaceInfo>& out_faceinfo) = 0;
-        virtual int DetectFaces(const std::vector<SULUImage>& images,std::vector< std::vector<SFaceInfo> >& out_faceinfos) = 0;
+        //以下两个函数，只是用来检测人脸，没有跟踪功能
+        virtual int DetectFaceBase(const SULUImage& image,std::vector<SBBox>& out_faceinfo) = 0;
+        virtual int DetectFaceBases(const std::vector<SULUImage>& images,std::vector< std::vector<SBBox> >& out_faceinfos) = 0;
 
         virtual int DetectFaceWithPedestrian(const SULUImage& image,std::vector<SFaceInfo>& out_faceinfo,std::vector<SDetectObjectInfo>& out_pedestrian_info) = 0;
         virtual int DetectFaceWithPedestrians(const std::vector<SULUImage>& images,std::vector< std::vector<SFaceInfo> >& out_faceinfos,

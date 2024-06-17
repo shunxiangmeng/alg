@@ -157,6 +157,9 @@ namespace ulu_face{
         //设置最小移动距离。若小于该距离，则不会认为是一个客流
         virtual void SetMinMoveDistance(int distance) = 0;
         
+        //设置最小移动IOU。若小于该IOU，则不会认为是一个客流，默认值为0.2，即框至少要移动20%以上，才会认为是一个客流
+        virtual void SetMinMoveIOU(float iou) = 0;
+        
         //设置最小秒数。若一个对象出现时间小于该秒，则不会返回，若大于该秒，则会认为至少是一个过店（建议此值设置为2秒或者3秒）
         virtual void SetMinLifeSeconds(float seconds) = 0;
         
@@ -216,6 +219,12 @@ namespace ulu_face{
         //设置人形得分范围，低于low分的，将不会计算特征
         virtual void SetPedScoreRange(float low,float high) = 0;
         
+        //设置人脸检测阈值。在一个轨迹中，至少要有人脸的置信度大于该值，该轨迹才有效
+        virtual void SetFaceDetectThreshould(float threshould) = 0;
+        
+        //设置人形检测阈值。在一个轨迹中，至少要有人形的置信度大于该值，该轨迹才有效
+        virtual void SetPedDetectThreshould(float threshould) = 0;
+        
         //设置输出图像数量，最多为五张
         virtual void SetOutputImageCount(int img_cnt) = 0;
         
@@ -226,6 +235,28 @@ namespace ulu_face{
         //是否每帧的检测出像都传出
         //默认情况下，只有有效的客流才会输出。当need为true时，则每帧中检测到的对象都会传出，但Personid可能为-1
         virtual void NeedOutputDetectImage(bool need) = 0;
+        
+        /*
+        这个一个临时方案，用来设置是否将人脸马赛克掉
+        该函数仅针对支持人脸检测的模型有效。如果检测模型只能检测出人形，则该调用无效。
+        若调用该函数且参数为true，也仅针对如下两个函数：
+         virtual int Update(const SULUImage& image,std::vector<SPersonInfo>& out_info) = 0;
+         virtual int UpdateEx(const SULUImage& image,std::vector<SPersonInfo>& out_info,const SULUImage& orig_image) = 0;
+        这两个函数调用时，传入的image图片会进行人脸马赛克化。（虽然这里定义了const。这是唯一一个地方会对image进行内容修改的地方。）
+         
+        若在应用层进行人脸马赛克化，则需要进行如下操作：
+         1、调用NeedOutputDetectImage(true);
+            该调用会强制每帧中检测出的对象都会传出
+         2、在调用Update或者UpdateEx时，对out_info进行如下顺序操作：
+            （1）对所有out_info中包含人脸检测信息的数据，进行人脸马赛克化
+            （2）丢弃掉所有person_id为-1的数据
+         
+         无论是否进行设置，通过如下接口函数：
+         virtual int GetStat(std::vector<SLostPersonInfo>& out_lost_info,SPersonStat& stat,const STimestamp& tv,int route_id = 0) = 0;
+         得到的out_lost_info中，crop_face_imgs和crop_pedestrian_imgs均会包含人脸信息。因为不管是做人脸特征还是REID时，马赛克化的人脸都会降低准确率。
+         如果需要在裁剪的图像中马赛克人脸，需要调用DetectFaceBase来检测人脸，然后在应用层马赛克化
+         */
+        virtual void SetFaceMosaic(bool enable) = 0;
     };
 
     class IULUPerson : public IULUPersonConfig
@@ -242,6 +273,9 @@ namespace ulu_face{
         
         //设置人形检测算法
         virtual EReturn_Code SetPersonDetectAlgorithm(EPersonDetectAlgor_Type algo) = 0;
+        
+        //设置人脸检测算法
+        virtual EReturn_Code SetFaceDetectAlgorithm(EFaceDetectAlgor_Type algo) = 0;
         
         //这个函数,传入一张图片，返回当前图片中的人
         virtual int Update(const SULUImage& image,std::vector<SPersonInfo>& out_info) = 0;
@@ -261,6 +295,10 @@ namespace ulu_face{
         virtual int ResetRoute(std::vector<SLostPersonInfo>& out_lost_info,int route_id = 0) = 0;
         
         virtual int AlignFace(const SULUImage& image,const SBBox& box,const float face_landmarks[],SULUImage& out_image) = 0;
+        
+        //以下两个函数，只是用来检测人脸，没有跟踪功能
+        virtual int DetectFaceBase(const SULUImage& image,std::vector<SBBox>& out_faceinfo) = 0;
+        virtual int DetectFaceBases(const std::vector<SULUImage>& images,std::vector< std::vector<SBBox> >& out_faceinfos) = 0;
         /*
         //这些接口仅仅为了兼容以前的内容
         virtual int DetectFaceWithPedestrian(SULUImage& image,SFaceAndPedestrianInfo& out_info) = 0;

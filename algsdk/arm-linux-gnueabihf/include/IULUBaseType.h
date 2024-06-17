@@ -253,7 +253,8 @@ namespace ulu_face{
     extern "C" EReturn_Code ResizeImage(const SULUImage& image,SULUImage& out_resized,int w,int h);
     extern "C" float CalcImageQuality(const SULUImage& image);
     extern "C" EReturn_Code CalcImageQualitys(const SULUImage& image,std::vector<SBBox>& in_boxes,std::vector<float>& out_claritys);
-
+    extern "C" EReturn_Code MosaicBox(const SULUImage& in_image,SULUImage& out_image,SBBox& bbox,int step=10);
+    extern "C" EReturn_Code MosaicBoxes(const SULUImage& in_image,SULUImage& out_image,std::vector<SBBox>& bboxes,int step=10);
     extern "C" void GetCurrentTimestamp(STimestamp& tv);
     extern "C" float GetExpireSeconds(const STimestamp& t_start,const STimestamp& t_end);
     extern "C" EReturn_Code SetCVAlgor(ECVAlgor_Type type);
