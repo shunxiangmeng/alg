@@ -198,22 +198,25 @@ void Behavior::pushDetectTarget(oac::ImageFrame &image, std::vector<ulu_face::SP
         Target target;
         target.type = E_TargetType_body;
         target.id = 0;
+        target.shap_type = E_TargetShapType_rect_pose;
         target.rect.x = it->box.lt_x() / image.width;
         target.rect.y = it->box.lt_y() / image.height;
         target.rect.w = it->box.width() / image.width;
         target.rect.h = it->box.height()  / image.height;
-        result.targets.push_back(target);
+        
         //infof("[%dx%d] [%.2f, %.2f, %.2f, %.2f] -> [%.2f, %.2f, %.2f, %.2f]\n", image.width, image.height, 
         //    it->box.bbox[0], it->box.bbox[1], it->box.bbox[2], it->box.bbox[3],
         //    target.rect.x, target.rect.y, target.rect.w, target.rect.h);
 
         for (int i = 0; i < it->keypoint_num; i++) {
+            Point point;
+            point.x = it->keypoints[i * 2] / image.width;
+            point.y = it->keypoints[i * 2 + 1] / image.height;
+            target.points.push_back(point);
             //tracef("p:%d, score:%0.2f, point(%02.f, %02.f)\n", i, it->scores[i], it->keypoints[i * 2], it->keypoints[i * 2 + 1]);
         }
 
+        result.targets.push_back(target);
     }
-
-
-
     oac_client_->pushCurrentDetectTarget(result);
 }
