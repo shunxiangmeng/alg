@@ -3,13 +3,14 @@ set(PLATFORM_DEPEND_LIBS)
 set(APP_DEPEND_LIBS)
 
 if (UNIX)
-    set(APP_DEPEND_LIBS ${APP_DEPEND_LIBS} pthread rt m)
+    set(APP_DEPEND_LIBS ${APP_DEPEND_LIBS} pthread rt m curl)
 elseif(WIN32)
 endif()
 
 
-link_directories(${PROJECT_SOURCE_DIR}/hardware/${PlatformToolchain})
-include(${PROJECT_SOURCE_DIR}/hardware/${PlatformToolchain}/Linklib.cmake)
+link_directories(${PROJECT_SOURCE_DIR}/hardware/${ToolPlatform})
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/common/thirdparty/prebuilts/lib/${ToolPlatform})
+include(${PROJECT_SOURCE_DIR}/hardware/${ToolPlatform}/Linklib.cmake)
 
 include(${PROJECT_SOURCE_DIR}/algsdk/Linklib.cmake)
 

@@ -47,7 +47,7 @@ include_directories(${PROJECT_SOURCE_DIR}/common/common/mediafiles/common/libmov
 include_directories(${PROJECT_SOURCE_DIR}/common/middleware)
 include_directories(${PROJECT_SOURCE_DIR}/applicaton)
 include_directories(${PROJECT_SOURCE_DIR}/hardware)
-include_directories(${PROJECT_SOURCE_DIR}/algsdk/${PlatformToolchain}/include)
+include_directories(${PROJECT_SOURCE_DIR}/algsdk/${ToolPlatform}/include)
 
 #源文件
 set(APP_SOURCE_FILES)
