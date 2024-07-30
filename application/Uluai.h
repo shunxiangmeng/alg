@@ -18,10 +18,17 @@
 #include "IULUBaseType.h"
 #include "IULUFace.h"
 
+typedef enum {
+    E_ALG_Fmix = 0,
+    E_ALG_XW
+} E_ALG_TYPE;
+
 class IUluai {
 public:
     IUluai();
     virtual ~IUluai() = default;
+    static std::shared_ptr<IUluai> create(E_ALG_TYPE alg_type);
+
     virtual bool init() = 0;
 
     void pushDetectTarget(oac::ImageFrame &image, std::vector<ulu_face::SPersonInfo> &detect_result);

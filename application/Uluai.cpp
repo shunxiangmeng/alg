@@ -9,6 +9,19 @@
  ************************************************************************/
 #include <fstream>
 #include "Uluai.h"
+#include "Fmix.h"
+#include "Behavior.h"
+
+std::shared_ptr<IUluai> IUluai::create(E_ALG_TYPE alg_type) {
+    switch (alg_type) {
+        case E_ALG_Fmix:
+            return std::make_shared<Fmix>();
+        case E_ALG_XW:
+            return std::make_shared<Behavior>();
+        default:
+            return nullptr;
+    }
+}
 
 IUluai::IUluai() : oac_client_(oac::IOacClient::instance()) {
 }
