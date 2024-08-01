@@ -49,6 +49,7 @@ include_directories(${PROJECT_SOURCE_DIR}/applicaton)
 include_directories(${PROJECT_SOURCE_DIR}/hardware)
 include_directories(${PROJECT_SOURCE_DIR}/algsdk/${ToolPlatform}/include)
 include_directories(${PROJECT_SOURCE_DIR}/algsdk/${ToolPlatform}/newface/include)
+include_directories(${PROJECT_SOURCE_DIR}/algsdk/${ToolPlatform})
 
 #源文件
 set(APP_SOURCE_FILES)

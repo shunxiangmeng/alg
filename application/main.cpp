@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
     infra::NetworkThreadPool::instance()->init(4);
     infra::WorkThreadPool::instance()->init(4);
 
-    auto alg = IUluai::create(E_ALG_XW);
+    auto alg = IUluai::create(E_ALG_Fmix);
     alg->init();
 
     while (true) {

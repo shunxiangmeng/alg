@@ -12,6 +12,7 @@
 #include <memory>
 #include "common/middleware/oac/include/OacClient.h"
 #include "common/middleware/private/include/IPrivClient.h"
+#include "infra/include/Buffer.h"
 
 #include "IULUPose.h"
 #include "IULUPerson.h"
@@ -20,7 +21,9 @@
 
 typedef enum {
     E_ALG_Fmix = 0,
-    E_ALG_XW
+    E_ALG_XW,
+    E_ALG_CRK,
+    E_ALG_RKNN,
 } E_ALG_TYPE;
 
 class IUluai {
@@ -31,11 +34,10 @@ public:
 
     virtual bool init() = 0;
 
-    void pushDetectTarget(oac::ImageFrame &image, std::vector<ulu_face::SPersonInfo> &detect_result);
-
 protected:
     oac::IOacClient *oac_client_ = nullptr;
 private:
 }; 
 
 std::shared_ptr<unsigned char> read_model_2_buff(const char *file_path, size_t& model_size);
+infra::Buffer loadModelFile(const char *file_path);

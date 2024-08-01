@@ -55,7 +55,7 @@ bool Fmix::initAlg() {
         return false;
     }
 
-    /*std::string reid_model_full_path = "/app/fs/models/reid/reid.rknn";
+    std::string reid_model_full_path = "/app/fs/models/reid/reid.rknn";
     size_t reid_model_size = 0;
     std::shared_ptr<unsigned char> model_data2 = read_model_2_buff(reid_model_full_path.c_str(), reid_model_size);
     tracef("reid_model_size = %d\n", reid_model_size);
@@ -64,7 +64,7 @@ bool Fmix::initAlg() {
         errorf("ulu_fs Init face detect fail, ret = %d\n", ret);
         DestroyPerson(&person_);
         return false;
-    }*/
+    }
 
 	/*std::string pose_model_full_path = "/app/fs/models/align_pose/LandmarkPose.rknn";
     size_t pose_model_size = 0;
@@ -99,18 +99,16 @@ bool Fmix::initAlg() {
         return false;
     }*/
 
-    person_->SetPedMaxMergeThreshould(0.85);
+    person_->SetPedMaxMergeThreshould(0.7);
     person_->SetMinHitTimes(1);
-    person_->SetMinLifeSeconds(0);
-    person_->SetMaxMergeSeconds(0);
+    person_->SetMinLifeSeconds(1);
+    person_->SetMaxMergeSeconds(5);
     person_->SetRegionIOU(0);
     person_->SetMinMoveDistance(0);
-    //person_->SetFaceMaxMergeThreshould(0.85);
 
     person_->SetEScene(ulu_face::ES_CommonStore);
-
     person_->SetModule(ulu_face::EPF_FaceDetect | ulu_face::EPF_PedestrianDetect, true);
-    person_->SetModule(ulu_face::EPF_ReID | ulu_face::EPF_HotZone | ulu_face::EPF_FaceVerify, false);
+    person_->SetModule(ulu_face::EPF_ReID, true);
 
     infof("init alg version: %s succeed\n", alg_sdk_version);
     return true;
@@ -120,12 +118,13 @@ void Fmix::run() {
     infof("start oac client test thread\n");
     int32_t count = 0;
     infra::Timestamp last_getstate_time = infra::Timestamp::now();
+    infra::Timestamp last_statistic_fps_time = infra::Timestamp::now();
     while (running()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
         oac::ImageFrame image;
         oac_client_->getImageFrame(image);
-        //infof("oac client use image index:%d, pts:%lld, wxh[%dx%d], size:%d, data:%p\n", image.index, image.timestamp, image.width, image.height, image.size, image.data);
+        //infof("oac client use image index:%d, pts:%lld, wxh[%dx%d], data:%p\n", image.index, image.timestamp, image.width, image.height, image.data);
 
         ulu_face::STimestamp tv;
         ulu_face::GetCurrentTimestamp(tv);
@@ -145,6 +144,14 @@ void Fmix::run() {
         infra::Timestamp t2 = infra::Timestamp::now();
         infra::TimeDelta delta = t2 - t1;
 
+        count++;
+        if (count >= 50) {
+            infra::Timestamp now = infra::Timestamp::now();
+            tracef("alg fps: %0.2f\n", count * 1000.0f / (now - last_statistic_fps_time).millis());
+            count = 0;
+            last_statistic_fps_time = now;
+        }
+
         //infof("time_diff:%lld, detect_result.size():%d\n", delta.millis(), detect_result.size());
 
         oac_client_->releaseImageFrame(image);
@@ -162,7 +169,7 @@ void Fmix::run() {
             int32_t result = person_->GetStat(lost_person, person_stat, tv);
             infra::Timestamp t2 = infra::Timestamp::now();
             infra::TimeDelta delta = t2 - t1;
-            infof("getstat used time:%lld\n", delta.millis());
+            //infof("getstat used time:%lld\n", delta.millis());
             if (result) {
 
             }
@@ -170,6 +177,38 @@ void Fmix::run() {
 
         //std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+}
+
+void Fmix::pushDetectTarget(oac::ImageFrame &image, std::vector<ulu_face::SPersonInfo> &persons) {
+    CurrentDetectResult result;
+    result.timestamp = image.timestamp;
+
+    for (auto it = persons.begin(); it != persons.end(); ++it) {
+        if (it->face_score > 0.1f) {
+            Target target;
+            target.type = E_TargetType_face;
+            target.id = it->face_info.trace_id;
+            target.shap_type = E_TargetShapType_rect;
+            target.rect.x = it->face_info.box.lt_x() / image.width;
+            target.rect.y = it->face_info.box.lt_y() / image.height;
+            target.rect.w = it->face_info.box.width() / image.width;
+            target.rect.h = it->face_info.box.height()  / image.height;
+            result.targets.push_back(target);
+        }
+        
+        if (it->pedestrian_score > 0.1f) {
+            Target target;
+            target.type = E_TargetType_body;
+            target.id = it->pedestrian_info.trace_id;
+            target.shap_type = E_TargetShapType_rect;
+            target.rect.x = it->pedestrian_info.box.lt_x() / image.width;
+            target.rect.y = it->pedestrian_info.box.lt_y() / image.height;
+            target.rect.w = it->pedestrian_info.box.width() / image.width;
+            target.rect.h = it->pedestrian_info.box.height()  / image.height;
+            result.targets.push_back(target);
+        }
+    }
+    oac_client_->pushCurrentDetectTarget(result);
 }
 
 std::string Fmix::version() {
