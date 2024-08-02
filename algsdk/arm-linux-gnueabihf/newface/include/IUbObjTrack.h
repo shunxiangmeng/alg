@@ -23,7 +23,8 @@ namespace ulu_best{
 
     struct SUbTrackCfg
     {
-        int min_hits;                          // 未命中时间下限
+        short scene;                           // 场景 1-排它性区域跟踪
+        short min_hits;                        // 未命中时间下限
         int max_age;                           // 未命中时间上限
 
         float iou_thre;                        // iou阈值

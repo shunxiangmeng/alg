@@ -27,7 +27,7 @@ private:
     virtual std::string version() override;
     virtual std::string sdkVersion() override;
 
-    void pushDetectTarget(oac::ImageFrame &image, std::vector<ulu_best::SUbObjInfo> &objects);
+    void pushDetectTarget(oac::ImageFrame &image, std::vector<ulu_best::SUbMixInfo> &objects);
 
 private:
     ulu_face::IULUPerson *person_ = nullptr;

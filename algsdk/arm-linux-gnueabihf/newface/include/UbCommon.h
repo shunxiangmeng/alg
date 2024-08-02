@@ -112,17 +112,24 @@ namespace ulu_best{
 
     struct SUbObjInfo
     {
+        /// 检测信息
         float bbox[4];     // x1,y1,x2,y2
         float box_thre;    // box threshold  (0 - 1)  
         int clsid;         // 类别id
         float cls_thre;    // class threshold (0 - 1) 
-        int areaid;        // 重合度最高的区域id
+        short lineid;      // 相交线id             
+        short areaid;      // 重合度最高的区域id
         float area_iou;    // area iou (区域重合度 = 重合面积/检测框面积)
         float score;       // 分数
-        int objid;         // 跟踪id
-        long long first_time;   // 跟踪开始时间  
 
-        SUbLandmarkInfo ldk;  // 关键点信息       
+        /// 跟踪信息
+        int objid;         // 跟踪id
+        float distance_x;  // x轴移动距离 (从外进入区域开始记录移动距离,中途跑到区域外置空,左上为顶点)
+        float distance_y;  // y轴移动距离 (同上)
+        long long first_time;  // 跟踪开始时间  
+
+        /// 关键点信息    
+        SUbLandmarkInfo ldk;         
     };
 
     struct SUbLossInfo

@@ -2,6 +2,7 @@
 #include "infra/include/Timestamp.h"
 #include "infra/include/TimeDelta.h"
 #include "infra/include/Logger.h"
+#include "infra/include/thread/WorkThreadPool.h"
 
 InOut::InOut() {
 }
@@ -38,16 +39,14 @@ bool InOut::initAlg() {
     int anchors[6 * 3] = {37, 18, 46, 37, 73, 50, 94, 79,142, 100, 170, 157, 196, 238, 344, 249, 294, 398};
     strcpy(mixCfg.model_path, "/app/fs/models/ulu_4cls_v5n_no.rknn");
     memcpy(&mixCfg.anchors[0], &anchors[0], sizeof(anchors));
-
     mixCfg.anchor_cols = 6;
     mixCfg.anchor_rows = 3;
-    mixCfg.box_conf = 0.48;
-    mixCfg.cls_conf = 0.3;
     mixCfg.nms = 0.3;
-
     mixCfg.nc = 2;
-    mixCfg.cls1_id = 0;
-    mixCfg.cls2_id = 1;
+    mixCfg.cls1_id = 0;  // 车子id
+    mixCfg.cls1_conf = 0.45;
+    mixCfg.cls2_id = 1;  // 车牌id
+    mixCfg.cls2_conf = 0.5;
     mixCfg.track_cls_id = 0;
 
     ret = MixDetect_->SetDetectCfg((void *)(&mixCfg));
@@ -76,6 +75,9 @@ bool InOut::initAlg() {
     if (pDetect) {
         pDetect->SetClsScoreMode(mixCfg.cls2_id, ulu_best::EScore_BoxArea); // 车牌设置按面积算得分
         pDetect->SetClsAreaIou(mixCfg.cls1_id, 0.001);                      // 车设置检测区域重合度
+        pDetect->SetClsAreaIou(mixCfg.cls2_id, 0.001);                      // 车设置检测区域重合度
+        pDetect->DisableClsLine(mixCfg.cls1_id);                  // 工位车子不开启相交线检测  
+        pDetect->DisableClsLine(mixCfg.cls2_id);                  // 工位车子不开启相交线检测  
     }
     infof("alg init succ\n");
     return true;
@@ -85,12 +87,18 @@ void InOut::run() {
     infof("start oac client test thread\n");
     int32_t count = 0;
     infra::Timestamp last_getstate_time = infra::Timestamp::now();
+    infra::Timestamp last_statistic_fps_time = infra::Timestamp::now();
+    uint32_t last_frame_number = 0;
     while (running()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
         oac::ImageFrame image;
         oac_client_->getImageFrame(image);
-        //infof("oac client use image index:%d, pts:%lld, wxh[%dx%d], data:%p\n", image.index, image.timestamp, image.width, image.height, image.data);
+        //infof("oac client use image index:%d, pts:%lld, number:%d, data:%p\n", image.index, image.timestamp, image.frame_number, image.data);
+        if (last_frame_number != image.frame_number - 1) {
+            warnf("skip frame %u\n", last_frame_number + 1);
+        }
+        last_frame_number = image.frame_number;
 
         ulu_best::SUbImg cv_img;
         cv_img.pixel_format = ulu_best::EPIX_FMT_RGB888;
@@ -100,39 +108,128 @@ void InOut::run() {
         cv_img.time = image.timestamp;
 
         std::vector<ulu_best::SUbLossInfo> loss_objects;
-        std::vector<ulu_best::SUbObjInfo> objects;
+        std::vector<ulu_best::SUbMixInfo> objects;
         
-        int ret = MixDetect_->Update(cv_img, objects);
+        infra::Timestamp t1 = infra::Timestamp::now();
+        int ret = MixDetect_->UpdateEx(cv_img, objects);
         if (ret > 0) {
             MixDetect_->LossData(loss_objects);
         }
+        infra::Timestamp t2 = infra::Timestamp::now();
+        infra::TimeDelta delta = t2 - t1;
+        //tracef("cal %lld\n", delta);
         oac_client_->releaseImageFrame(image);
 
         for (auto it = objects.begin(); it != objects.end(); ++it) {
-            if (it->objid < 1) {
+            if (it->track_obj.objid < 1) {
                 // 测试说 id = -1 的会数据重复；算法说 id < 1 的都不处理，过滤掉即可
                 //warnf("skip id = %d\n", it->objid);
                 continue;
             }
         }
 
+        count++;
+        if (count >= 50) {
+            infra::Timestamp now = infra::Timestamp::now();
+            //tracef("alg fps: %0.2f\n", count * 1000.0f / (now - last_statistic_fps_time).millis());
+            count = 0;
+            last_statistic_fps_time = now;
+        }
+
         pushDetectTarget(image, objects);
     }
 }
 
-void InOut::pushDetectTarget(oac::ImageFrame &image, std::vector<ulu_best::SUbObjInfo> &objects) {
+
+std::vector<float> lowPassFilter(const std::vector<float>& input, int windowSize) {
+    if (windowSize <= 0 || input.empty()) {
+        return input;
+    }
+    std::vector<float> output(input.size(), 0.0);
+    std::vector<float> window(windowSize, 0.0);
+    double sum = 0.0;
+
+    for (size_t i = 0; i < input.size(); ++i) {
+        // 更新窗口
+        sum -= window[i % windowSize];
+        window[i % windowSize] = input[i];
+        sum += window[i % windowSize];
+
+        // 计算平均值
+        output[i] = sum / windowSize;
+    }
+    return output;
+}
+
+static void filter(ulu_best::SUbObjInfo& obj) {
+    static std::map<int, std::vector<ulu_best::SUbObjInfo>> s_obj_map;
+    auto it = s_obj_map.find(obj.objid);
+    if (it == s_obj_map.end()) {
+        std::vector<ulu_best::SUbObjInfo> obj_list;
+        obj_list.push_back(obj);
+        s_obj_map[obj.objid] = obj_list;
+    } else {
+        auto &obj_list = it->second;
+
+        float a = 0.8f;
+        float b = 0.2f;
+        float c = 0.0f;
+        float d = 0.0f;
+
+        //infof(" [%.2f, %.2f, %.2f, %.2f]\n", obj.bbox[0], obj.bbox[1], obj.bbox[2], obj.bbox[3]);
+
+        if (obj_list.size() == 1) {
+            a = 0.8f; b = 0.2f;
+            obj.bbox[0] = obj.bbox[0] * a + obj_list[0].bbox[0] * b;
+            obj.bbox[1] = obj.bbox[1] * a + obj_list[0].bbox[1] * b;
+            obj.bbox[2] = obj.bbox[2] * a + obj_list[0].bbox[2] * b;
+            obj.bbox[3] = obj.bbox[3] * a + obj_list[0].bbox[3] * b;
+            obj_list.push_back(obj);
+        } else if (obj_list.size() == 2) {
+            a = 0.5f; b = 0.3f; c = 0.2f;
+            obj.bbox[0] = obj.bbox[0] * a + obj_list[1].bbox[0] * b + obj_list[0].bbox[0] * c;
+            obj.bbox[1] = obj.bbox[1] * a + obj_list[1].bbox[1] * b + obj_list[0].bbox[1] * c;
+            obj.bbox[2] = obj.bbox[2] * a + obj_list[1].bbox[2] * b + obj_list[0].bbox[2] * c;
+            obj.bbox[3] = obj.bbox[3] * a + obj_list[1].bbox[3] * b + obj_list[0].bbox[3] * c;
+            obj_list.push_back(obj);
+        } else if (obj_list.size() == 3) {
+            a = 0.4f; b = 0.3f; c = 0.2f; d = 0.1f;
+            obj.bbox[0] = obj.bbox[0] * a + obj_list[2].bbox[0] * b + obj_list[1].bbox[0] * c + obj_list[0].bbox[0] * d;
+            obj.bbox[1] = obj.bbox[1] * a + obj_list[2].bbox[1] * b + obj_list[1].bbox[1] * c + obj_list[0].bbox[1] * d;
+            obj.bbox[2] = obj.bbox[2] * a + obj_list[2].bbox[2] * b + obj_list[1].bbox[2] * c + obj_list[0].bbox[2] * d;
+            obj.bbox[3] = obj.bbox[3] * a + obj_list[2].bbox[3] * b + obj_list[1].bbox[3] * c + obj_list[0].bbox[3] * d;
+        }
+
+        //tracef("[%.2f, %.2f, %.2f, %.2f] [%.2f, %.2f, %.2f, %.2f] [%.2f, %.2f, %.2f, %.2f]\n\n", 
+        //    obj.bbox[0], obj.bbox[1], obj.bbox[2], obj.bbox[3],
+        //    obj_list[1].bbox[0], obj_list[1].bbox[1], obj_list[1].bbox[2], obj_list[1].bbox[3],
+        //    obj_list[0].bbox[0], obj_list[0].bbox[1], obj_list[0].bbox[2], obj_list[0].bbox[3]);
+        //
+        size_t i = 1;
+        for (i = 1; i < obj_list.size(); i++) {
+            obj_list[i - 1] = obj_list[i];
+        }
+        obj_list[i - 1] = obj;
+    }
+}
+
+void InOut::pushDetectTarget(oac::ImageFrame &image, std::vector<ulu_best::SUbMixInfo> &objects) {
     CurrentDetectResult result;
     result.timestamp = image.timestamp;
 
     for (auto it = objects.begin(); it != objects.end(); ++it) {
+        auto &obj = it->track_obj;
+
+        filter(obj);
+
         Target target;
         target.type = E_TargetType_body;
-        target.id = it->objid;
+        target.id = obj.objid;
         target.shap_type = E_TargetShapType_rect_pose;
-        target.rect.x = it->bbox[0] / image.width;     //left
-        target.rect.y = it->bbox[1] / image.height;    //top
-        target.rect.w = (it->bbox[2] - it->bbox[0]) / image.width;  //right - left
-        target.rect.h = (it->bbox[3] - it->bbox[1]) / image.height; //bottom - top
+        target.rect.x = obj.bbox[0] / image.width;     //left
+        target.rect.y = obj.bbox[1] / image.height;    //top
+        target.rect.w = (obj.bbox[2] - obj.bbox[0]) / image.width;  //right - left
+        target.rect.h = (obj.bbox[3] - obj.bbox[1]) / image.height; //bottom - top
         
         //infof("[%dx%d] [%.2f, %.2f, %.2f, %.2f] -> [%.2f, %.2f, %.2f, %.2f]\n", image.width, image.height, 
         //    it->box.bbox[0], it->box.bbox[1], it->box.bbox[2], it->box.bbox[3],
@@ -140,7 +237,9 @@ void InOut::pushDetectTarget(oac::ImageFrame &image, std::vector<ulu_best::SUbOb
 
         result.targets.push_back(target);
     }
-    oac_client_->pushCurrentDetectTarget(result);
+    infra::WorkThreadPool::instance()->async([this, result]() mutable {
+        oac_client_->pushCurrentDetectTarget(result);
+    });
 }
 
 std::string InOut::version() {

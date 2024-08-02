@@ -22,13 +22,13 @@ namespace ulu_best{
         // 设置瞄定框参数
         int anchors[18];                         
         int anchor_cols;
-        int anchor_rows;
-        float box_conf;                         // 框的置信度
-        float cls_conf;                         // 类别的置信度
+        int anchor_rows; 
         float nms;                              // 非极大抑值
         int nc;                                 // 检测类别数量
         int cls1_id;                            // 类别1，例如车类别id
+        float cls1_conf;                        // 类别1的置信度
         int cls2_id;                            // 类别2，例如车牌类别id
+        float cls2_conf;                        // 类别2的置信度
         int track_cls_id;                       // 需要跟踪的类别id 
     };
 
@@ -62,6 +62,13 @@ namespace ulu_best{
         float good_pluse;
     };
 
+    struct SUbMixInfo {
+        SUbObjInfo track_obj;
+        int second_clsid;         // 车牌框类别id
+        float second_cls_thre;    // class threshold (0 - 1)         
+        float second_bbox[4];     // x1,y1,x2,y2
+    };
+
     class IMixDetect
     {
     public:
@@ -78,12 +85,11 @@ namespace ulu_best{
         virtual EReturn_Code SetEvalCfg(void* cfg) = 0;
         // 检测跟踪图片
         virtual int Update(SUbImg &img, std::vector<SUbObjInfo> &objs) = 0;
+        virtual int UpdateEx(SUbImg &img, std::vector<SUbMixInfo> &objs) = 0;
         // 获取丢失的目标id
         virtual EReturn_Code Loss(std::vector<int> &loss_ids) = 0;
         // 获取丢失的目标数据
         virtual EReturn_Code LossData(std::vector<SUbLossInfo>& loss_datas) = 0;
-  
-
     };
 
 #ifdef __cplusplus

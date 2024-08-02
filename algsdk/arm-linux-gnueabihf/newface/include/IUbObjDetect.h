@@ -41,6 +41,15 @@ namespace ulu_best{
         ERK_IN_AREA4 = 0X08,
     };
 
+    enum EDetect_LINE{
+        //最多可设置4个相交线
+        ERK_IN_LINE1 = 0X01,
+        ERK_IN_LINE2 = 0X02,
+        ERK_IN_LINE3 = 0X04,
+        ERK_IN_LINE4 = 0X08,
+    };
+
+
 #ifdef USE_OBJ_DETECT
 
     class IObjDetect
@@ -68,11 +77,17 @@ namespace ulu_best{
         // 设置单类分数计算方式
         virtual EReturn_Code SetClsScoreMode(int clsid, EDetect_ScoreMode mode) = 0;        
         // 关闭检测类别ID(坐标从0开始)
-        virtual EReturn_Code DisableClass(int clsid) = 0;
+        virtual EReturn_Code DisableClass(int clsid) = 0;  
+        // 关闭类别ID相交线检测(坐标从0开始)
+        virtual EReturn_Code DisableClsLine(int clsid) = 0;                    
         // 设置检测区域
         virtual EReturn_Code SetRegion(std::vector<SUbPoint> &pts, EDetect_AREA idx) = 0;
         // 获取检测区域
         virtual EReturn_Code GetRegion(std::vector<SUbPoint> &pts, EDetect_AREA idx) = 0;
+        // 设置相交线
+        virtual EReturn_Code SetLine(std::vector<SUbPoint> &pts, EDetect_LINE idx) = 0;
+        // 获取相交线
+        virtual EReturn_Code GetLine(std::vector<SUbPoint> &pts, EDetect_LINE idx) = 0;        
         // 检测图片,返回检测目标数量
         virtual int Input(SUbImg &img, EImg_Process ep) = 0;
         // 获取结果
