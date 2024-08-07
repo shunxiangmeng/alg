@@ -28,10 +28,12 @@ private:
     virtual std::string sdkVersion() override;
 
     void pushDetectTarget(oac::ImageFrame &image, std::vector<ulu_best::SUbMixInfo> &objects);
+    void pushDetectRegion(std::vector<std::vector<ulu_best::SUbPoint>> &regions);
 
 private:
     ulu_face::IULUPerson *person_ = nullptr;
     std::string alg_sdk_version_;
 
     ulu_best::IMixDetect* MixDetect_ = nullptr;
+    std::vector<std::vector<ulu_best::SUbPoint>> region_point1_;
 };

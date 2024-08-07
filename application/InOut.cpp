@@ -79,6 +79,18 @@ bool InOut::initAlg() {
         pDetect->DisableClsLine(mixCfg.cls1_id);                  // 工位车子不开启相交线检测  
         pDetect->DisableClsLine(mixCfg.cls2_id);                  // 工位车子不开启相交线检测  
     }
+
+    std::vector<ulu_best::SUbPoint> pts;
+    pts.push_back({0.1, 0.5});
+    pts.push_back({0.5, 0.5});
+    pts.push_back({0.5, 0.9});
+    pts.push_back({0.1, 0.9});
+    pDetect->SetRegion(pts, ulu_best::ERK_IN_AREA1);
+    region_point1_.push_back(pts);
+
+    pts.resize(2);
+    pDetect->SetLine(pts, ulu_best::ERK_IN_LINE1);
+
     infof("alg init succ\n");
     return true;
 }
@@ -126,14 +138,18 @@ void InOut::run() {
                 //warnf("skip id = %d\n", it->objid);
                 continue;
             }
+            //tracef("id:%d, second_cls_thre:%0.f, [(%0.2f, %0.2f),(%0.2f, %0.2f)]\n", 
+            //    it->second_clsid, it->second_cls_thre, it->second_bbox[0], it->second_bbox[1], it->second_bbox[2], it->second_bbox[3]);
         }
 
         count++;
-        if (count >= 50) {
+        if (count >= 100) {
             infra::Timestamp now = infra::Timestamp::now();
-            //tracef("alg fps: %0.2f\n", count * 1000.0f / (now - last_statistic_fps_time).millis());
+            tracef("alg fps: %0.1f\n", count * 1000.0f / (now - last_statistic_fps_time).millis());
             count = 0;
             last_statistic_fps_time = now;
+
+            pushDetectRegion(region_point1_);
         }
 
         pushDetectTarget(image, objects);
@@ -230,15 +246,43 @@ void InOut::pushDetectTarget(oac::ImageFrame &image, std::vector<ulu_best::SUbMi
         target.rect.y = obj.bbox[1] / image.height;    //top
         target.rect.w = (obj.bbox[2] - obj.bbox[0]) / image.width;  //right - left
         target.rect.h = (obj.bbox[3] - obj.bbox[1]) / image.height; //bottom - top
+
+        result.targets.push_back(target);
         
         //infof("[%dx%d] [%.2f, %.2f, %.2f, %.2f] -> [%.2f, %.2f, %.2f, %.2f]\n", image.width, image.height, 
         //    it->box.bbox[0], it->box.bbox[1], it->box.bbox[2], it->box.bbox[3],
         //    target.rect.x, target.rect.y, target.rect.w, target.rect.h);
-
-        result.targets.push_back(target);
+        // 车牌框
+        if (it->second_clsid > 0) {
+            Target target;
+            target.type = E_TargetType_body;
+            target.id = obj.objid;
+            target.shap_type = E_TargetShapType_rect_pose;
+            target.rect.x = it->second_bbox[0] / image.width;     //left
+            target.rect.y = it->second_bbox[1] / image.height;    //top
+            target.rect.w = (it->second_bbox[2] - it->second_bbox[0]) / image.width;  //right - left
+            target.rect.h = (it->second_bbox[3] - it->second_bbox[1]) / image.height; //bottom - top
+            result.targets.push_back(target);
+        }
     }
     infra::WorkThreadPool::instance()->async([this, result]() mutable {
         oac_client_->pushCurrentDetectTarget(result);
+    });
+}
+
+void InOut::pushDetectRegion(std::vector<std::vector<ulu_best::SUbPoint>> &regions) {
+    std::vector<DetectRegion> detect_region;
+    for (auto i = 0; i < regions.size(); i++) {
+        DetectRegion region;
+        region.id = std::to_string(i);
+        for (auto &point: regions[i]) {
+            region.points.push_back({point.x, point.y});
+        }
+        detect_region.push_back(region);
+    }
+
+    infra::WorkThreadPool::instance()->async([this, detect_region]() mutable {
+        oac_client_->pushDetectRegion(detect_region);
     });
 }
 
